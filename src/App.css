@@ -3440,25 +3440,26 @@ html, body {
   }
 }
 
-/* Streaming Text Animation Styles */
-@keyframes streamingCursor {
-  0%, 50% {
-    opacity: 1;
-  }
-  51%, 100% {
-    opacity: 0;
-  }
+/* Streaming Text Animation Styles - LLM-like smooth reveal */
+.streaming-word {
+  display: inline-block;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+  margin-right: 0.25em; /* Add space between words */
 }
 
-.streaming-cursor {
-  animation: streamingCursor 0.8s ease-in-out infinite;
-  font-weight: 300;
-  margin-left: 2px;
-  color: inherit;
-  text-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
-  filter: brightness(1.2);
-  font-size: inherit;
-  line-height: inherit;
+.streaming-word:last-child {
+  margin-right: 0; /* Remove margin from last word */
+}
+
+.streaming-word.hidden {
+  opacity: 0;
+  transform: scale(0.95) translateY(2px);
+}
+
+.streaming-word.visible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
 }
 
 

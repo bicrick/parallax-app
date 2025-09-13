@@ -256,9 +256,11 @@ function StreamingText({ text, delay = 0, wordDelay = 200, className = '', style
   return (
     <span className={className} style={style}>
       {words.map((word, index) => (
-        <span key={index} style={{ opacity: index <= visibleWordIndex ? 1 : 0 }}>
+        <span 
+          key={index} 
+          className={`streaming-word ${index <= visibleWordIndex ? 'visible' : 'hidden'}`}
+        >
           {word}
-          {index < words.length - 1 ? ' ' : ''}
         </span>
       ))}
     </span>
