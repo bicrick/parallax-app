@@ -3,6 +3,7 @@ import './App.css';
 
 const SceneContext = createContext();
 const ThemeContext = createContext();
+const AdaptiveThemeContext = createContext();
 
 export function useScene() {
   return useContext(SceneContext);
@@ -10,6 +11,10 @@ export function useScene() {
 
 export function useTheme() {
   return useContext(ThemeContext);
+}
+
+export function useAdaptiveTheme() {
+  return useContext(AdaptiveThemeContext);
 }
 
 const themes = {
@@ -408,12 +413,7 @@ function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [ghostText, setGhostText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [textColors, setTextColors] = useState({
-    title: 'rgba(255, 255, 255, 0.98)',
-    subtitle: 'rgba(255, 255, 255, 0.7)',
-    keyFeatures: '#ff6b35'
-  });
-  const { currentScene } = useScene();
+  const textColors = useAdaptiveTheme();
 
   const ghostTexts = React.useMemo(() => [
     "A serene mountain landscape at sunset...",
@@ -425,203 +425,7 @@ function Home() {
     "Futuristic cityscape at night..."
   ], []);
 
-  // Image analysis for top third brightness detection
-  const analyzeImageBrightness = useCallback(async (imagePath) => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          
-          // Set canvas to match image size
-          canvas.width = img.width;
-          canvas.height = img.height;
-          
-          // Draw image to canvas
-          ctx.drawImage(img, 0, 0);
-          
-          // Get image data for top third only
-          const topThirdHeight = Math.floor(img.height / 3);
-          const imageData = ctx.getImageData(0, 0, img.width, topThirdHeight);
-          const pixels = imageData.data;
-          
-          let totalBrightness = 0;
-          let pixelCount = 0;
-          
-          // Calculate average brightness of top third
-          for (let i = 0; i < pixels.length; i += 4) {
-            const r = pixels[i];
-            const g = pixels[i + 1];
-            const b = pixels[i + 2];
-            const alpha = pixels[i + 3];
-            
-            // Skip transparent pixels
-            if (alpha > 0) {
-              // Calculate luminance using standard formula
-              const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
-              totalBrightness += luminance;
-              pixelCount++;
-            }
-          }
-          
-          const averageBrightness = totalBrightness / pixelCount;
-          
-          // Normalize to 0-1 range
-          const normalizedBrightness = averageBrightness / 255;
-          
-          resolve({
-            brightness: normalizedBrightness,
-            isDark: normalizedBrightness < 0.5,
-            isVeryDark: normalizedBrightness < 0.3,
-            isLight: normalizedBrightness > 0.7,
-            isVeryLight: normalizedBrightness > 0.85
-          });
-          
-        } catch (error) {
-          console.warn('Error analyzing image brightness:', error);
-          // Default to medium brightness if analysis fails
-          resolve({
-            brightness: 0.5,
-            isDark: false,
-            isVeryDark: false,
-            isLight: false,
-            isVeryLight: false
-          });
-        }
-      };
-      
-      img.onerror = () => {
-        console.warn('Failed to load image for brightness analysis:', imagePath);
-        resolve({
-          brightness: 0.5,
-          isDark: false,
-          isVeryDark: false,
-          isLight: false,
-          isVeryLight: false
-        });
-      };
-      
-      img.src = imagePath;
-    });
-  }, []);
 
-  // Intelligent color analysis based on actual image brightness
-  const analyzeSceneColors = useCallback(async (scene) => {
-    if (!scene) return;
-
-    try {
-      // Get the current scene's background image path
-      let imagePath = '';
-      
-      if (typeof scene.id === 'string' && scene.id.startsWith('ocean')) {
-        const oceanNumber = scene.id.replace('ocean', '');
-        // Use the frontmost layer (highest number) for analysis
-        const layerNumbers = {
-          '1': 4, '2': 5, '3': 5, '4': 5, '5': 5, '6': 5, '7': 6, '8': 6
-        };
-        const layerNum = layerNumbers[oceanNumber] || 5;
-        imagePath = `${process.env.PUBLIC_URL}/ocean-and-clouds-free-pixel-art-backgrounds/Ocean_${oceanNumber}/${layerNum}.png`;
-      } else {
-        // Nature scenes - use the frontmost layer
-        const layerNumbers = {
-          1: 8, // Use layer 8 for Lake Meadow
-          2: 4, // Grasslands
-          3: 4, // Mountain  
-          4: 4, // Forested Meadow
-          5: 5, // Flower Meadow
-          6: 3  // Northern Lights
-        };
-        const layerNum = layerNumbers[scene.id] || 4;
-        imagePath = `${process.env.PUBLIC_URL}/Nature Landscapes Free Pixel Art/nature_${scene.id}/${layerNum}.png`;
-      }
-
-      // Analyze the top third of the image
-      const analysis = await analyzeImageBrightness(imagePath);
-      
-      // Determine text colors based on brightness analysis
-      let newColors = { ...textColors };
-      let shadowIntensity = 'medium';
-
-      if (analysis.isVeryDark) {
-        // Very dark backgrounds need bright white text with strong shadows
-        newColors = {
-          title: 'rgba(255, 255, 255, 0.98)',
-          subtitle: 'rgba(255, 255, 255, 0.88)',
-          keyFeatures: '#ff6b35'
-        };
-        shadowIntensity = 'strong';
-      } else if (analysis.isDark) {
-        // Dark backgrounds need bright text
-        newColors = {
-          title: 'rgba(255, 255, 255, 0.95)',
-          subtitle: 'rgba(255, 255, 255, 0.82)',
-          keyFeatures: '#ff6b35'
-        };
-        shadowIntensity = 'strong';
-      } else if (analysis.isVeryLight) {
-        // Very light backgrounds need dark text
-        newColors = {
-          title: 'rgba(0, 0, 0, 0.9)',
-          subtitle: 'rgba(0, 0, 0, 0.7)',
-          keyFeatures: '#d4491f'
-        };
-        shadowIntensity = 'light';
-      } else if (analysis.isLight) {
-        // Light backgrounds can use either dark or light text
-        newColors = {
-          title: 'rgba(0, 0, 0, 0.85)',
-          subtitle: 'rgba(0, 0, 0, 0.68)',
-          keyFeatures: '#c63e1f'
-        };
-        shadowIntensity = 'light';
-      } else {
-        // Medium brightness - default to white text with good shadows
-        newColors = {
-          title: 'rgba(255, 255, 255, 0.96)',
-          subtitle: 'rgba(255, 255, 255, 0.78)',
-          keyFeatures: '#ff6b35'
-        };
-        shadowIntensity = 'medium';
-      }
-
-      // Create adaptive shadows based on background brightness
-      if (analysis.isVeryLight || analysis.isLight) {
-        // Light backgrounds need subtle dark shadows
-        newColors.textShadow = shadowIntensity === 'light' ? 
-          '0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)' :
-          '0 1px 3px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3)';
-        
-        newColors.titleShadow = shadowIntensity === 'light' ?
-          '0 1px 3px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4)' :
-          '0 1px 4px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.5)';
-      } else {
-        // Dark backgrounds need strong black shadows with some blur
-        newColors.textShadow = shadowIntensity === 'strong' ? 
-          '0 0 4px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.6)' :
-          '0 0 3px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)';
-        
-        newColors.titleShadow = shadowIntensity === 'strong' ?
-          '0 0 6px rgba(0, 0, 0, 1), 0 0 12px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.6)' :
-          '0 0 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)';
-      }
-
-      setTextColors(newColors);
-      
-    } catch (error) {
-      console.warn('Error in scene color analysis:', error);
-      // Fallback to default styling
-      setTextColors({
-        title: 'rgba(255, 255, 255, 0.98)',
-        subtitle: 'rgba(255, 255, 255, 0.8)',
-        keyFeatures: '#ff6b35',
-        textShadow: '0 0 3px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.6)',
-        titleShadow: '0 0 4px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.7)'
-      });
-    }
-  }, [analyzeImageBrightness, textColors]);
 
   // Typing ghost text effect - wait for title animations to complete
   useEffect(() => {
@@ -678,10 +482,6 @@ function Home() {
     }
   }, [prompt, ghostTexts]);
 
-  // Analyze colors when scene changes
-  useEffect(() => {
-    analyzeSceneColors(currentScene);
-  }, [currentScene, analyzeSceneColors]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -738,47 +538,117 @@ function Home() {
           </div>
           
           <div className="dora-input-container">
-            <div className="dora-input-wrapper">
-              <div className="ai-icon">
-                <img 
-                  src={`${process.env.PUBLIC_URL}/ai-star.png`} 
-                  alt="AI" 
-                  className="ai-star-image"
-                />
+            <div 
+              className="dora-input-wrapper"
+              style={{
+                background: textColors.containerBg,
+                borderColor: textColors.containerBorder
+              }}
+            >
+              <div className="dora-input-row">
+                <div className="ai-icon">
+                  <img 
+                    src={`${process.env.PUBLIC_URL}/ai-star.png`} 
+                    alt="AI" 
+                    className="ai-star-image"
+                    style={{ 
+                      filter: `brightness(0) saturate(100%) invert(${textColors.inputText && textColors.inputText.includes('255, 255, 255') ? '1' : '0'})`,
+                      opacity: textColors.inputText ? (textColors.inputText.match(/rgba?\([^,]+,[^,]+,[^,]+,?\s*([^)]+)\)/)?.[1] || '0.9') : '0.9'
+                    }}
+                  />
+                </div>
+                
+                <div className="input-content">
+                  <input
+                    type="text"
+                    className="dora-prompt-input"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
+                    style={{
+                      color: textColors.inputText
+                    }}
+                  />
+                  {prompt.length === 0 && isTyping && (
+                    <div 
+                      className="ghost-text"
+                      style={{
+                        color: textColors.inputPlaceholder
+                      }}
+                    >
+                      {ghostText}
+                      <span 
+                        className="typing-cursor"
+                        style={{
+                          color: textColors.inputPlaceholder
+                        }}
+                      >|</span>
+                    </div>
+                  )}
+                </div>
+                
+                <button 
+                  className="dora-generate-button"
+                  onClick={handleGenerate}
+                  disabled={!prompt.trim() || isGenerating}
+                  style={{
+                    background: textColors.buttonBg,
+                    color: textColors.buttonText
+                  }}
+                >
+                  {isGenerating ? (
+                    <div className="dora-spinner"></div>
+                  ) : (
+                    <>
+                      Generate
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <path d="M5 12h14m-7-7l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </>
+                  )}
+                </button>
               </div>
               
-              <div className="input-content">
-                <input
-                  type="text"
-                  className="dora-prompt-input"
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
-                />
-                {prompt.length === 0 && isTyping && (
-                  <div className="ghost-text">
-                    {ghostText}
-                    <span className="typing-cursor">|</span>
+              <div className="supported-formats">
+                <div 
+                  className="formats-container"
+                  style={{ color: textColors.subtitle }}
+                >
+                  <div className="format-logo">
+                    <img 
+                      src={`${process.env.PUBLIC_URL}/iOS-Logo.png`} 
+                      alt="iOS Support" 
+                      className="format-icon"
+                      style={{ 
+                        filter: `brightness(0) saturate(100%) invert(${textColors.subtitle.includes('255, 255, 255') ? '1' : '0'})`,
+                        opacity: textColors.subtitle.match(/rgba?\([^,]+,[^,]+,[^,]+,?\s*([^)]+)\)/)?.[1] || '0.7'
+                      }}
+                    />
                   </div>
-                )}
+                  <div className="format-logo">
+                    <img 
+                      src={`${process.env.PUBLIC_URL}/gif-logo.png`} 
+                      alt="GIF Support" 
+                      className="format-icon"
+                      style={{ 
+                        filter: `brightness(0) saturate(100%) invert(${textColors.subtitle.includes('255, 255, 255') ? '1' : '0'})`,
+                        opacity: textColors.subtitle.match(/rgba?\([^,]+,[^,]+,[^,]+,?\s*([^)]+)\)/)?.[1] || '0.7'
+                      }}
+                    />
+                  </div>
+                  <div className="format-logo">
+                    <img 
+                      src={`${process.env.PUBLIC_URL}/png-logo.png`} 
+                      alt="PNG Support" 
+                      className="format-icon"
+                      style={{ 
+                        filter: `brightness(0) saturate(100%) invert(${textColors.subtitle.includes('255, 255, 255') ? '1' : '0'})`,
+                        opacity: textColors.subtitle.match(/rgba?\([^,]+,[^,]+,[^,]+,?\s*([^)]+)\)/)?.[1] || '0.7'
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
-              
-              <button 
-                className="dora-generate-button"
-                onClick={handleGenerate}
-                disabled={!prompt.trim() || isGenerating}
-              >
-                {isGenerating ? (
-                  <div className="dora-spinner"></div>
-                ) : (
-                  <>
-                    Generate
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <path d="M5 12h14m-7-7l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </>
-                )}
-              </button>
             </div>
           </div>
         </div>
@@ -926,9 +796,15 @@ function SceneSelector() {
   );
 }
 
-function Header() {
+function Header({ themeColors }) {
   return (
-    <header className="modern-header">
+    <header 
+      className="modern-header"
+      style={{
+        background: themeColors?.containerBg || 'rgba(0, 0, 0, 0.6)',
+        borderBottomColor: themeColors?.containerBorder || 'rgba(255, 255, 255, 0.1)'
+      }}
+    >
       <div className="header-content">
         <div className="header-left">
           <img 
@@ -952,10 +828,42 @@ function Header() {
         </div>
         <div className="header-right">
           <nav className="header-nav">
-            <a href="#features" className="nav-link">Features</a>
-            <a href="#gallery" className="nav-link">Gallery</a>
-            <a href="#api" className="nav-link">API</a>
-            <button className="get-started-btn">Get Started</button>
+            <a 
+              href="#features" 
+              className="nav-link"
+              style={{
+                color: themeColors?.inputText || 'rgba(255, 255, 255, 0.7)'
+              }}
+            >
+              Features
+            </a>
+            <a 
+              href="#gallery" 
+              className="nav-link"
+              style={{
+                color: themeColors?.inputText || 'rgba(255, 255, 255, 0.7)'
+              }}
+            >
+              Gallery
+            </a>
+            <a 
+              href="#api" 
+              className="nav-link"
+              style={{
+                color: themeColors?.inputText || 'rgba(255, 255, 255, 0.7)'
+              }}
+            >
+              API
+            </a>
+            <button 
+              className="get-started-btn"
+              style={{
+                background: themeColors?.buttonBg || 'rgba(255, 255, 255, 0.9)',
+                color: themeColors?.buttonText || 'rgba(0, 0, 0, 0.8)'
+              }}
+            >
+              Get Started
+            </button>
           </nav>
         </div>
       </div>
@@ -965,7 +873,218 @@ function Header() {
 
 function Layout({ children }) {
   const [currentScene, setCurrentScene] = useState(defaultScene);
+  const [adaptiveColors, setAdaptiveColors] = useState({
+    title: 'rgba(255, 255, 255, 0.98)',
+    subtitle: 'rgba(255, 255, 255, 0.8)',
+    keyFeatures: '#ff6b35',
+    textShadow: '0 0 3px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.6)',
+    titleShadow: '0 0 4px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.7)',
+    containerBg: 'rgba(0, 0, 0, 0.65)',
+    containerBorder: 'rgba(255, 255, 255, 0.15)',
+    inputText: 'rgba(255, 255, 255, 0.92)',
+    inputPlaceholder: 'rgba(255, 255, 255, 0.5)',
+    buttonBg: 'rgba(255, 255, 255, 0.12)',
+    buttonText: 'rgba(255, 255, 255, 0.92)'
+  });
+  
   const theme = themes[currentScene?.id];
+
+  // Image analysis for top third brightness detection
+  const analyzeImageBrightness = useCallback(async (imagePath) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          
+          const topThirdHeight = Math.floor(img.height / 3);
+          const imageData = ctx.getImageData(0, 0, img.width, topThirdHeight);
+          const pixels = imageData.data;
+          
+          let totalBrightness = 0;
+          let pixelCount = 0;
+          
+          for (let i = 0; i < pixels.length; i += 4) {
+            const r = pixels[i];
+            const g = pixels[i + 1];
+            const b = pixels[i + 2];
+            const alpha = pixels[i + 3];
+            
+            if (alpha > 0) {
+              const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+              totalBrightness += luminance;
+              pixelCount++;
+            }
+          }
+          
+          const averageBrightness = totalBrightness / pixelCount;
+          const normalizedBrightness = averageBrightness / 255;
+          
+          resolve({
+            brightness: normalizedBrightness,
+            isDark: normalizedBrightness < 0.5,
+            isVeryDark: normalizedBrightness < 0.3,
+            isLight: normalizedBrightness > 0.7,
+            isVeryLight: normalizedBrightness > 0.85
+          });
+          
+        } catch (error) {
+          console.warn('Error analyzing image brightness:', error);
+          resolve({
+            brightness: 0.5,
+            isDark: false,
+            isVeryDark: false,
+            isLight: false,
+            isVeryLight: false
+          });
+        }
+      };
+      
+      img.onerror = () => {
+        console.warn('Failed to load image for brightness analysis:', imagePath);
+        resolve({
+          brightness: 0.5,
+          isDark: false,
+          isVeryDark: false,
+          isLight: false,
+          isVeryLight: false
+        });
+      };
+      
+      img.src = imagePath;
+    });
+  }, []);
+
+  // Analyze scene colors when scene changes
+  useEffect(() => {
+    const analyzeSceneColors = async (scene) => {
+      if (!scene) return;
+
+      try {
+        let imagePath = '';
+        
+        if (typeof scene.id === 'string' && scene.id.startsWith('ocean')) {
+          const oceanNumber = scene.id.replace('ocean', '');
+          const layerNumbers = {
+            '1': 4, '2': 5, '3': 5, '4': 5, '5': 5, '6': 5, '7': 6, '8': 6
+          };
+          const layerNum = layerNumbers[oceanNumber] || 5;
+          imagePath = `${process.env.PUBLIC_URL}/ocean-and-clouds-free-pixel-art-backgrounds/Ocean_${oceanNumber}/${layerNum}.png`;
+        } else {
+          const layerNumbers = {
+            1: 8, 2: 4, 3: 4, 4: 4, 5: 5, 6: 3
+          };
+          const layerNum = layerNumbers[scene.id] || 4;
+          imagePath = `${process.env.PUBLIC_URL}/Nature Landscapes Free Pixel Art/nature_${scene.id}/${layerNum}.png`;
+        }
+
+        const analysis = await analyzeImageBrightness(imagePath);
+        
+        let newColors = { ...adaptiveColors };
+        let shadowIntensity = 'medium';
+
+        if (analysis.isVeryDark) {
+          newColors = {
+            title: 'rgba(255, 255, 255, 0.98)',
+            subtitle: 'rgba(255, 255, 255, 0.88)',
+            keyFeatures: '#ff6b35',
+            containerBg: 'rgba(0, 0, 0, 0.65)',
+            containerBorder: 'rgba(255, 255, 255, 0.15)',
+            inputText: 'rgba(255, 255, 255, 0.95)',
+            inputPlaceholder: 'rgba(255, 255, 255, 0.5)',
+            buttonBg: 'rgba(255, 255, 255, 0.15)',
+            buttonText: 'rgba(255, 255, 255, 0.95)'
+          };
+          shadowIntensity = 'strong';
+        } else if (analysis.isDark) {
+          newColors = {
+            title: 'rgba(255, 255, 255, 0.95)',
+            subtitle: 'rgba(255, 255, 255, 0.82)',
+            keyFeatures: '#ff6b35',
+            containerBg: 'rgba(0, 0, 0, 0.65)',
+            containerBorder: 'rgba(255, 255, 255, 0.15)',
+            inputText: 'rgba(255, 255, 255, 0.9)',
+            inputPlaceholder: 'rgba(255, 255, 255, 0.5)',
+            buttonBg: 'rgba(255, 255, 255, 0.15)',
+            buttonText: 'rgba(255, 255, 255, 0.9)'
+          };
+          shadowIntensity = 'strong';
+        } else if (analysis.isVeryLight) {
+          newColors = {
+            title: 'rgba(0, 0, 0, 0.9)',
+            subtitle: 'rgba(0, 0, 0, 0.7)',
+            keyFeatures: '#d4491f',
+            containerBg: 'rgba(255, 255, 255, 0.75)',
+            containerBorder: 'rgba(0, 0, 0, 0.12)',
+            inputText: 'rgba(0, 0, 0, 0.9)',
+            inputPlaceholder: 'rgba(0, 0, 0, 0.4)',
+            buttonBg: 'rgba(0, 0, 0, 0.08)',
+            buttonText: 'rgba(0, 0, 0, 0.85)'
+          };
+          shadowIntensity = 'light';
+        } else if (analysis.isLight) {
+          newColors = {
+            title: 'rgba(0, 0, 0, 0.85)',
+            subtitle: 'rgba(0, 0, 0, 0.68)',
+            keyFeatures: '#c63e1f',
+            containerBg: 'rgba(255, 255, 255, 0.7)',
+            containerBorder: 'rgba(0, 0, 0, 0.1)',
+            inputText: 'rgba(0, 0, 0, 0.85)',
+            inputPlaceholder: 'rgba(0, 0, 0, 0.4)',
+            buttonBg: 'rgba(0, 0, 0, 0.06)',
+            buttonText: 'rgba(0, 0, 0, 0.8)'
+          };
+          shadowIntensity = 'light';
+        } else {
+          newColors = {
+            title: 'rgba(255, 255, 255, 0.96)',
+            subtitle: 'rgba(255, 255, 255, 0.78)',
+            keyFeatures: '#ff6b35',
+            containerBg: 'rgba(0, 0, 0, 0.65)',
+            containerBorder: 'rgba(255, 255, 255, 0.15)',
+            inputText: 'rgba(255, 255, 255, 0.92)',
+            inputPlaceholder: 'rgba(255, 255, 255, 0.5)',
+            buttonBg: 'rgba(255, 255, 255, 0.12)',
+            buttonText: 'rgba(255, 255, 255, 0.92)'
+          };
+          shadowIntensity = 'medium';
+        }
+
+        // Add shadows
+        if (analysis.isVeryLight || analysis.isLight) {
+          newColors.textShadow = shadowIntensity === 'light' ? 
+            '0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)' :
+            '0 1px 3px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3)';
+          
+          newColors.titleShadow = shadowIntensity === 'light' ?
+            '0 1px 3px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4)' :
+            '0 1px 4px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.5)';
+        } else {
+          newColors.textShadow = shadowIntensity === 'strong' ? 
+            '0 0 4px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.6)' :
+            '0 0 3px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)';
+          
+          newColors.titleShadow = shadowIntensity === 'strong' ?
+            '0 0 6px rgba(0, 0, 0, 1), 0 0 12px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.6)' :
+            '0 0 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)';
+        }
+
+        setAdaptiveColors(newColors);
+        
+      } catch (error) {
+        console.warn('Error in scene color analysis:', error);
+      }
+    };
+
+    analyzeSceneColors(currentScene);
+  }, [currentScene, analyzeImageBrightness, adaptiveColors]);
 
   useEffect(() => {
     // Update CSS variables when theme changes
@@ -980,10 +1099,12 @@ function Layout({ children }) {
   return (
     <SceneContext.Provider value={{ currentScene, setCurrentScene }}>
       <ThemeContext.Provider value={theme}>
-        <ParallaxBackground scrollSpeedMultiplier={1} />
-        <Header />
-        <SceneSelector />
-        {children}
+        <AdaptiveThemeContext.Provider value={adaptiveColors}>
+          <ParallaxBackground scrollSpeedMultiplier={1} />
+          <Header themeColors={adaptiveColors} />
+          <SceneSelector />
+          {children}
+        </AdaptiveThemeContext.Provider>
       </ThemeContext.Provider>
     </SceneContext.Provider>
   );
