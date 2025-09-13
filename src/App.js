@@ -1,4 +1,4 @@
-import React, { useEffect, createContext, useContext, useState, useCallback } from 'react';
+import React, { useEffect, createContext, useContext, useState, useCallback, useRef } from 'react';
 import './App.css';
 
 const SceneContext = createContext();
@@ -199,6 +199,72 @@ const themes = {
   }
 };
 
+// Simple streaming text hook - word by word with moving cursor
+function useStreamingText(text, delay = 0, wordDelay = 200) {
+  const [visibleWordIndex, setVisibleWordIndex] = useState(-1);
+  const [isComplete, setIsComplete] = useState(false);
+  const timeoutRef = useRef(null);
+
+  const words = text ? text.split(' ') : [];
+
+  useEffect(() => {
+    // Clear existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    // Reset state
+    setVisibleWordIndex(-1);
+    setIsComplete(false);
+
+    if (!text || words.length === 0) return;
+
+    // Start animation after delay
+    timeoutRef.current = setTimeout(() => {
+      let currentIndex = 0;
+      
+      const showNextWord = () => {
+        if (currentIndex < words.length) {
+          setVisibleWordIndex(currentIndex);
+          currentIndex++;
+          
+          if (currentIndex < words.length) {
+            timeoutRef.current = setTimeout(showNextWord, wordDelay);
+          } else {
+            setIsComplete(true);
+          }
+        }
+      };
+      
+      showNextWord();
+    }, delay);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [text, delay, wordDelay, words.length]);
+
+  return { words, visibleWordIndex, isComplete };
+}
+
+// Simple streaming text component
+function StreamingText({ text, delay = 0, wordDelay = 200, className = '', style = {} }) {
+  const { words, visibleWordIndex } = useStreamingText(text, delay, wordDelay);
+  
+  return (
+    <span className={className} style={style}>
+      {words.map((word, index) => (
+        <span key={index} style={{ opacity: index <= visibleWordIndex ? 1 : 0 }}>
+          {word}
+          {index < words.length - 1 ? ' ' : ''}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 
 function ParallaxBackground({ scrollSpeedMultiplier = 1 }) {
   const { currentScene } = useScene();
@@ -347,7 +413,7 @@ function Home() {
   });
   const { currentScene } = useScene();
 
-  const ghostTexts = [
+  const ghostTexts = React.useMemo(() => [
     "A serene mountain landscape at sunset...",
     "Mystical forest with glowing fireflies...",
     "Underwater coral reef with tropical fish...",
@@ -355,178 +421,205 @@ function Home() {
     "Northern lights over snowy mountains...",
     "Cherry blossom garden in spring...",
     "Futuristic cityscape at night..."
-  ];
+  ], []);
 
-  // Intelligent color analysis based on scene
-  const analyzeSceneColors = useCallback((scene) => {
+  // Image analysis for top third brightness detection
+  const analyzeImageBrightness = useCallback(async (imagePath) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // Set canvas to match image size
+          canvas.width = img.width;
+          canvas.height = img.height;
+          
+          // Draw image to canvas
+          ctx.drawImage(img, 0, 0);
+          
+          // Get image data for top third only
+          const topThirdHeight = Math.floor(img.height / 3);
+          const imageData = ctx.getImageData(0, 0, img.width, topThirdHeight);
+          const pixels = imageData.data;
+          
+          let totalBrightness = 0;
+          let pixelCount = 0;
+          
+          // Calculate average brightness of top third
+          for (let i = 0; i < pixels.length; i += 4) {
+            const r = pixels[i];
+            const g = pixels[i + 1];
+            const b = pixels[i + 2];
+            const alpha = pixels[i + 3];
+            
+            // Skip transparent pixels
+            if (alpha > 0) {
+              // Calculate luminance using standard formula
+              const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+              totalBrightness += luminance;
+              pixelCount++;
+            }
+          }
+          
+          const averageBrightness = totalBrightness / pixelCount;
+          
+          // Normalize to 0-1 range
+          const normalizedBrightness = averageBrightness / 255;
+          
+          resolve({
+            brightness: normalizedBrightness,
+            isDark: normalizedBrightness < 0.5,
+            isVeryDark: normalizedBrightness < 0.3,
+            isLight: normalizedBrightness > 0.7,
+            isVeryLight: normalizedBrightness > 0.85
+          });
+          
+        } catch (error) {
+          console.warn('Error analyzing image brightness:', error);
+          // Default to medium brightness if analysis fails
+          resolve({
+            brightness: 0.5,
+            isDark: false,
+            isVeryDark: false,
+            isLight: false,
+            isVeryLight: false
+          });
+        }
+      };
+      
+      img.onerror = () => {
+        console.warn('Failed to load image for brightness analysis:', imagePath);
+        resolve({
+          brightness: 0.5,
+          isDark: false,
+          isVeryDark: false,
+          isLight: false,
+          isVeryLight: false
+        });
+      };
+      
+      img.src = imagePath;
+    });
+  }, []);
+
+  // Intelligent color analysis based on actual image brightness
+  const analyzeSceneColors = useCallback(async (scene) => {
     if (!scene) return;
 
-    // Define color profiles for each scene based on their visual characteristics
-    const sceneColorProfiles = {
-      // Nature scenes
-      1: { // Lake Meadow - bright blues and greens
-        dominantColors: ['#87ceeb', '#4834d4', '#90EE90'],
-        brightness: 'medium-light',
-        contrast: 'high'
-      },
-      2: { // Warm - warm oranges and yellows
-        dominantColors: ['#ffd6a5', '#ff7e67', '#FFD700'],
-        brightness: 'light',
-        contrast: 'medium'
-      },
-      3: { // Sunset - pinks and purples
-        dominantColors: ['#ff9a9e', '#a18cd1', '#FF69B4'],
-        brightness: 'medium',
-        contrast: 'medium'
-      },
-      4: { // Forest - dark greens
-        dominantColors: ['#2f4858', '#86c232', '#228B22'],
-        brightness: 'dark',
-        contrast: 'high'
-      },
-      5: { // Flower - bright pinks
-        dominantColors: ['#ff9ecd', '#ff4d94', '#FF1493'],
-        brightness: 'medium-light',
-        contrast: 'medium'
-      },
-      6: { // Night - very dark
-        dominantColors: ['#1a1a2e', '#9d4edd', '#4B0082'],
-        brightness: 'very-dark',
-        contrast: 'high'
-      },
-      // Ocean scenes
-      'ocean1': { // Bright Ocean - bright blues
-        dominantColors: ['#87ceeb', '#2196f3', '#00BFFF'],
-        brightness: 'light',
-        contrast: 'medium'
-      },
-      'ocean2': { // Sunset Ocean - warm oranges
-        dominantColors: ['#ff7043', '#ff5722', '#FF4500'],
-        brightness: 'medium',
-        contrast: 'medium'
-      },
-      'ocean3': { // Tropical Ocean - cyan blues
-        dominantColors: ['#26c6da', '#00bcd4', '#00CED1'],
-        brightness: 'medium-light',
-        contrast: 'medium'
-      },
-      'ocean4': { // Evening Ocean - deep blues
-        dominantColors: ['#5c6bc0', '#3f51b5', '#4169E1'],
-        brightness: 'medium-dark',
-        contrast: 'high'
-      },
-      'ocean5': { // Moonlit Ocean - very dark blues
-        dominantColors: ['#1a237e', '#7986cb', '#191970'],
-        brightness: 'very-dark',
-        contrast: 'high'
-      },
-      'ocean6': { // Stormy Ocean - grays
-        dominantColors: ['#455a64', '#607d8b', '#708090'],
-        brightness: 'medium-dark',
-        contrast: 'medium'
-      },
-      'ocean7': { // Golden Ocean - warm golds
-        dominantColors: ['#ffb74d', '#ff9800', '#FFD700'],
-        brightness: 'light',
-        contrast: 'medium'
-      },
-      'ocean8': { // Misty Ocean - light grays
-        dominantColors: ['#90a4ae', '#546e7a', '#B0C4DE'],
-        brightness: 'medium-light',
-        contrast: 'low'
+    try {
+      // Get the current scene's background image path
+      let imagePath = '';
+      
+      if (typeof scene.id === 'string' && scene.id.startsWith('ocean')) {
+        const oceanNumber = scene.id.replace('ocean', '');
+        // Use the frontmost layer (highest number) for analysis
+        const layerNumbers = {
+          '1': 4, '2': 5, '3': 5, '4': 5, '5': 5, '6': 5, '7': 6, '8': 6
+        };
+        const layerNum = layerNumbers[oceanNumber] || 5;
+        imagePath = `${process.env.PUBLIC_URL}/ocean-and-clouds-free-pixel-art-backgrounds/Ocean_${oceanNumber}/${layerNum}.png`;
+      } else {
+        // Nature scenes - use the frontmost layer
+        const layerNumbers = {
+          1: 8, // Use layer 8 for Lake Meadow
+          2: 4, // Grasslands
+          3: 4, // Mountain  
+          4: 4, // Forested Meadow
+          5: 5, // Flower Meadow
+          6: 3  // Northern Lights
+        };
+        const layerNum = layerNumbers[scene.id] || 4;
+        imagePath = `${process.env.PUBLIC_URL}/Nature Landscapes Free Pixel Art/nature_${scene.id}/${layerNum}.png`;
       }
-    };
 
-    const profile = sceneColorProfiles[scene.id];
-    if (!profile) return;
+      // Analyze the top third of the image
+      const analysis = await analyzeImageBrightness(imagePath);
+      
+      // Determine text colors based on brightness analysis
+      let newColors = { ...textColors };
+      let shadowIntensity = 'medium';
 
-    // Calculate optimal text colors based on scene characteristics
-    let newColors = { ...textColors };
-
-    switch (profile.brightness) {
-      case 'very-dark':
+      if (analysis.isVeryDark) {
+        // Very dark backgrounds need bright white text with strong shadows
         newColors = {
           title: 'rgba(255, 255, 255, 0.98)',
-          subtitle: 'rgba(255, 255, 255, 0.85)',
+          subtitle: 'rgba(255, 255, 255, 0.88)',
           keyFeatures: '#ff6b35'
         };
-        break;
-      case 'dark':
+        shadowIntensity = 'strong';
+      } else if (analysis.isDark) {
+        // Dark backgrounds need bright text
         newColors = {
           title: 'rgba(255, 255, 255, 0.95)',
-          subtitle: 'rgba(255, 255, 255, 0.8)',
+          subtitle: 'rgba(255, 255, 255, 0.82)',
           keyFeatures: '#ff6b35'
         };
-        break;
-      case 'medium-dark':
+        shadowIntensity = 'strong';
+      } else if (analysis.isVeryLight) {
+        // Very light backgrounds need dark text
         newColors = {
-          title: 'rgba(255, 255, 255, 0.98)',
-          subtitle: 'rgba(255, 255, 255, 0.8)',
+          title: 'rgba(0, 0, 0, 0.9)',
+          subtitle: 'rgba(0, 0, 0, 0.7)',
+          keyFeatures: '#d4491f'
+        };
+        shadowIntensity = 'light';
+      } else if (analysis.isLight) {
+        // Light backgrounds can use either dark or light text
+        newColors = {
+          title: 'rgba(0, 0, 0, 0.85)',
+          subtitle: 'rgba(0, 0, 0, 0.68)',
+          keyFeatures: '#c63e1f'
+        };
+        shadowIntensity = 'light';
+      } else {
+        // Medium brightness - default to white text with good shadows
+        newColors = {
+          title: 'rgba(255, 255, 255, 0.96)',
+          subtitle: 'rgba(255, 255, 255, 0.78)',
           keyFeatures: '#ff6b35'
         };
-        break;
-      case 'medium':
-        // Check if scene has warm or cool tones
-        const hasWarmTones = profile.dominantColors.some(color => 
-          color.includes('ff') || color.includes('orange') || color.includes('red')
-        );
-        newColors = {
-          title: hasWarmTones ? 'rgba(255, 255, 255, 0.98)' : 'rgba(255, 255, 255, 0.95)',
-          subtitle: hasWarmTones ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.75)',
-          keyFeatures: hasWarmTones ? '#ff6b35' : '#ff8c42'
-        };
-        break;
-      case 'medium-light':
-        newColors = {
-          title: 'rgba(255, 255, 255, 0.98)',
-          subtitle: 'rgba(255, 255, 255, 0.8)',
-          keyFeatures: '#e55a2b'
-        };
-        break;
-      case 'light':
-        // For very light backgrounds, we might need darker text
-        const isVeryLight = profile.dominantColors.some(color => 
-          color.includes('ff') && (color.includes('d') || color.includes('e') || color.includes('f'))
-        );
-        if (isVeryLight) {
-          newColors = {
-            title: 'rgba(0, 0, 0, 0.9)',
-            subtitle: 'rgba(0, 0, 0, 0.7)',
-            keyFeatures: '#d4491f'
-          };
-        } else {
-          newColors = {
-            title: 'rgba(255, 255, 255, 0.98)',
-            subtitle: 'rgba(255, 255, 255, 0.8)',
-            keyFeatures: '#e55a2b'
-          };
-        }
-        break;
-      default:
-        // Keep default white text
-        break;
+        shadowIntensity = 'medium';
+      }
+
+      // Create adaptive shadows based on background brightness
+      if (analysis.isVeryLight || analysis.isLight) {
+        // Light backgrounds need subtle dark shadows
+        newColors.textShadow = shadowIntensity === 'light' ? 
+          '0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2)' :
+          '0 1px 3px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3)';
+        
+        newColors.titleShadow = shadowIntensity === 'light' ?
+          '0 1px 3px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4)' :
+          '0 1px 4px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.5)';
+      } else {
+        // Dark backgrounds need strong black shadows with some blur
+        newColors.textShadow = shadowIntensity === 'strong' ? 
+          '0 0 4px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.6)' :
+          '0 0 3px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)';
+        
+        newColors.titleShadow = shadowIntensity === 'strong' ?
+          '0 0 6px rgba(0, 0, 0, 1), 0 0 12px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.6)' :
+          '0 0 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)';
+      }
+
+      setTextColors(newColors);
+      
+    } catch (error) {
+      console.warn('Error in scene color analysis:', error);
+      // Fallback to default styling
+      setTextColors({
+        title: 'rgba(255, 255, 255, 0.98)',
+        subtitle: 'rgba(255, 255, 255, 0.8)',
+        keyFeatures: '#ff6b35',
+        textShadow: '0 0 3px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.6)',
+        titleShadow: '0 0 4px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.7)'
+      });
     }
-
-    // Add enhanced text shadows for better readability
-    const shadowIntensity = profile.contrast === 'low' ? 'strong' : 
-                           profile.contrast === 'medium' ? 'medium' : 'light';
-    
-    // Create layered shadows for maximum visibility
-    newColors.textShadow = shadowIntensity === 'strong' ? 
-      '0 0 4px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.6)' :
-      shadowIntensity === 'medium' ? 
-      '0 0 3px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)' :
-      '0 0 2px rgba(0, 0, 0, 0.7), 0 1px 4px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)';
-    
-    // Add subtle outline effect for extra visibility
-    newColors.titleShadow = shadowIntensity === 'strong' ? 
-      '0 0 6px rgba(0, 0, 0, 1), 0 0 12px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.6)' :
-      shadowIntensity === 'medium' ? 
-      '0 0 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)' :
-      '0 0 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.6), 0 1px 4px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)';
-
-    setTextColors(newColors);
-  }, [textColors]);
+  }, [analyzeImageBrightness, textColors]);
 
   // Typing ghost text effect
   useEffect(() => {
@@ -606,7 +699,11 @@ function Home() {
                 textShadow: textColors.titleShadow 
               }}
             >
-              Generate Your Perfect Background
+              <StreamingText 
+                text="Generate Your Perfect Background"
+                delay={500}
+                wordDelay={180}
+              />
             </h1>
             <p 
               className="dora-subtitle"
@@ -615,7 +712,11 @@ function Home() {
                 textShadow: textColors.textShadow 
               }}
             >
-              Create stunning parallax scenes from any description
+              <StreamingText 
+                text="Create stunning parallax scenes from any description"
+                delay={1500}
+                wordDelay={150}
+              />
             </p>
           </div>
           
@@ -691,7 +792,14 @@ const oceanScenes = [
   { id: 'ocean8', name: 'Misty Ocean', accent: '#546e7a', thumbnail: `${process.env.PUBLIC_URL}/ocean-and-clouds-free-pixel-art-backgrounds/Ocean_8/6.png` },
 ];
 
-const defaultScene = natureScenes[0]; // Lake Meadow
+// Function to get a random scene from all available scenes
+const getRandomScene = () => {
+  const allScenes = [...natureScenes, ...oceanScenes];
+  const randomIndex = Math.floor(Math.random() * allScenes.length);
+  return allScenes[randomIndex];
+};
+
+const defaultScene = getRandomScene();
 
 function SceneSelector() {
   const [isOpen, setIsOpen] = useState(false);
