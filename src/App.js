@@ -717,7 +717,7 @@ function Home() {
               }}
             >
               <StreamingText 
-                text="Generate Your Perfect Background"
+                text="Generate Your Perfect Wallpaper"
                 delay={500}
                 wordDelay={180}
               />
@@ -879,7 +879,7 @@ function SceneSelector() {
       {isOpen && (
         <div className="fab-panel">
           <div className="fab-panel-header">
-            <h3>Choose Background</h3>
+            <h3>Choose Wallpaper</h3>
             <div className="category-tabs">
               <button 
                 className={`category-tab ${activeCategory === 'nature' ? 'active' : ''}`}
