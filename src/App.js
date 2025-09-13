@@ -1,4 +1,4 @@
-import React, { useEffect, createContext, useContext, useState } from 'react';
+import React, { useEffect, createContext, useContext, useState, useCallback } from 'react';
 import './App.css';
 
 const SceneContext = createContext();
@@ -340,6 +340,12 @@ function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [ghostText, setGhostText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [textColors, setTextColors] = useState({
+    title: 'rgba(255, 255, 255, 0.98)',
+    subtitle: 'rgba(255, 255, 255, 0.7)',
+    keyFeatures: '#ff6b35'
+  });
+  const { currentScene } = useScene();
 
   const ghostTexts = [
     "A serene mountain landscape at sunset...",
@@ -350,6 +356,177 @@ function Home() {
     "Cherry blossom garden in spring...",
     "Futuristic cityscape at night..."
   ];
+
+  // Intelligent color analysis based on scene
+  const analyzeSceneColors = useCallback((scene) => {
+    if (!scene) return;
+
+    // Define color profiles for each scene based on their visual characteristics
+    const sceneColorProfiles = {
+      // Nature scenes
+      1: { // Lake Meadow - bright blues and greens
+        dominantColors: ['#87ceeb', '#4834d4', '#90EE90'],
+        brightness: 'medium-light',
+        contrast: 'high'
+      },
+      2: { // Warm - warm oranges and yellows
+        dominantColors: ['#ffd6a5', '#ff7e67', '#FFD700'],
+        brightness: 'light',
+        contrast: 'medium'
+      },
+      3: { // Sunset - pinks and purples
+        dominantColors: ['#ff9a9e', '#a18cd1', '#FF69B4'],
+        brightness: 'medium',
+        contrast: 'medium'
+      },
+      4: { // Forest - dark greens
+        dominantColors: ['#2f4858', '#86c232', '#228B22'],
+        brightness: 'dark',
+        contrast: 'high'
+      },
+      5: { // Flower - bright pinks
+        dominantColors: ['#ff9ecd', '#ff4d94', '#FF1493'],
+        brightness: 'medium-light',
+        contrast: 'medium'
+      },
+      6: { // Night - very dark
+        dominantColors: ['#1a1a2e', '#9d4edd', '#4B0082'],
+        brightness: 'very-dark',
+        contrast: 'high'
+      },
+      // Ocean scenes
+      'ocean1': { // Bright Ocean - bright blues
+        dominantColors: ['#87ceeb', '#2196f3', '#00BFFF'],
+        brightness: 'light',
+        contrast: 'medium'
+      },
+      'ocean2': { // Sunset Ocean - warm oranges
+        dominantColors: ['#ff7043', '#ff5722', '#FF4500'],
+        brightness: 'medium',
+        contrast: 'medium'
+      },
+      'ocean3': { // Tropical Ocean - cyan blues
+        dominantColors: ['#26c6da', '#00bcd4', '#00CED1'],
+        brightness: 'medium-light',
+        contrast: 'medium'
+      },
+      'ocean4': { // Evening Ocean - deep blues
+        dominantColors: ['#5c6bc0', '#3f51b5', '#4169E1'],
+        brightness: 'medium-dark',
+        contrast: 'high'
+      },
+      'ocean5': { // Moonlit Ocean - very dark blues
+        dominantColors: ['#1a237e', '#7986cb', '#191970'],
+        brightness: 'very-dark',
+        contrast: 'high'
+      },
+      'ocean6': { // Stormy Ocean - grays
+        dominantColors: ['#455a64', '#607d8b', '#708090'],
+        brightness: 'medium-dark',
+        contrast: 'medium'
+      },
+      'ocean7': { // Golden Ocean - warm golds
+        dominantColors: ['#ffb74d', '#ff9800', '#FFD700'],
+        brightness: 'light',
+        contrast: 'medium'
+      },
+      'ocean8': { // Misty Ocean - light grays
+        dominantColors: ['#90a4ae', '#546e7a', '#B0C4DE'],
+        brightness: 'medium-light',
+        contrast: 'low'
+      }
+    };
+
+    const profile = sceneColorProfiles[scene.id];
+    if (!profile) return;
+
+    // Calculate optimal text colors based on scene characteristics
+    let newColors = { ...textColors };
+
+    switch (profile.brightness) {
+      case 'very-dark':
+        newColors = {
+          title: 'rgba(255, 255, 255, 0.98)',
+          subtitle: 'rgba(255, 255, 255, 0.85)',
+          keyFeatures: '#ff6b35'
+        };
+        break;
+      case 'dark':
+        newColors = {
+          title: 'rgba(255, 255, 255, 0.95)',
+          subtitle: 'rgba(255, 255, 255, 0.8)',
+          keyFeatures: '#ff6b35'
+        };
+        break;
+      case 'medium-dark':
+        newColors = {
+          title: 'rgba(255, 255, 255, 0.98)',
+          subtitle: 'rgba(255, 255, 255, 0.8)',
+          keyFeatures: '#ff6b35'
+        };
+        break;
+      case 'medium':
+        // Check if scene has warm or cool tones
+        const hasWarmTones = profile.dominantColors.some(color => 
+          color.includes('ff') || color.includes('orange') || color.includes('red')
+        );
+        newColors = {
+          title: hasWarmTones ? 'rgba(255, 255, 255, 0.98)' : 'rgba(255, 255, 255, 0.95)',
+          subtitle: hasWarmTones ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.75)',
+          keyFeatures: hasWarmTones ? '#ff6b35' : '#ff8c42'
+        };
+        break;
+      case 'medium-light':
+        newColors = {
+          title: 'rgba(255, 255, 255, 0.98)',
+          subtitle: 'rgba(255, 255, 255, 0.8)',
+          keyFeatures: '#e55a2b'
+        };
+        break;
+      case 'light':
+        // For very light backgrounds, we might need darker text
+        const isVeryLight = profile.dominantColors.some(color => 
+          color.includes('ff') && (color.includes('d') || color.includes('e') || color.includes('f'))
+        );
+        if (isVeryLight) {
+          newColors = {
+            title: 'rgba(0, 0, 0, 0.9)',
+            subtitle: 'rgba(0, 0, 0, 0.7)',
+            keyFeatures: '#d4491f'
+          };
+        } else {
+          newColors = {
+            title: 'rgba(255, 255, 255, 0.98)',
+            subtitle: 'rgba(255, 255, 255, 0.8)',
+            keyFeatures: '#e55a2b'
+          };
+        }
+        break;
+      default:
+        // Keep default white text
+        break;
+    }
+
+    // Add enhanced text shadows for better readability
+    const shadowIntensity = profile.contrast === 'low' ? 'strong' : 
+                           profile.contrast === 'medium' ? 'medium' : 'light';
+    
+    // Create layered shadows for maximum visibility
+    newColors.textShadow = shadowIntensity === 'strong' ? 
+      '0 0 4px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.6)' :
+      shadowIntensity === 'medium' ? 
+      '0 0 3px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)' :
+      '0 0 2px rgba(0, 0, 0, 0.7), 0 1px 4px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)';
+    
+    // Add subtle outline effect for extra visibility
+    newColors.titleShadow = shadowIntensity === 'strong' ? 
+      '0 0 6px rgba(0, 0, 0, 1), 0 0 12px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.8), 0 4px 16px rgba(0, 0, 0, 0.6)' :
+      shadowIntensity === 'medium' ? 
+      '0 0 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)' :
+      '0 0 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.6), 0 1px 4px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)';
+
+    setTextColors(newColors);
+  }, [textColors]);
 
   // Typing ghost text effect
   useEffect(() => {
@@ -389,7 +566,12 @@ function Home() {
       setIsTyping(false);
       setGhostText('');
     }
-  }, [prompt]);
+  }, [prompt, ghostTexts]);
+
+  // Analyze colors when scene changes
+  useEffect(() => {
+    analyzeSceneColors(currentScene);
+  }, [currentScene, analyzeSceneColors]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -417,9 +599,24 @@ function Home() {
       }}>
         <div className="dora-style-container">
           <div className="dora-header-section">
-            <div className="key-features-label">Key Features</div>
-            <h1 className="dora-main-title">Generate Your Perfect Background</h1>
-            <p className="dora-subtitle">Create stunning parallax scenes from any description</p>
+            <h1 
+              className="dora-main-title"
+              style={{ 
+                color: textColors.title,
+                textShadow: textColors.titleShadow 
+              }}
+            >
+              Generate Your Perfect Background
+            </h1>
+            <p 
+              className="dora-subtitle"
+              style={{ 
+                color: textColors.subtitle,
+                textShadow: textColors.textShadow 
+              }}
+            >
+              Create stunning parallax scenes from any description
+            </p>
           </div>
           
           <div className="dora-input-container">
