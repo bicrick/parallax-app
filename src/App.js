@@ -338,6 +338,58 @@ function ParallaxBackground({ scrollSpeedMultiplier = 1 }) {
 function Home() {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [ghostText, setGhostText] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+
+  const ghostTexts = [
+    "A serene mountain landscape at sunset...",
+    "Mystical forest with glowing fireflies...",
+    "Underwater coral reef with tropical fish...",
+    "Desert oasis with palm trees and camels...",
+    "Northern lights over snowy mountains...",
+    "Cherry blossom garden in spring...",
+    "Futuristic cityscape at night..."
+  ];
+
+  // Typing ghost text effect
+  useEffect(() => {
+    if (prompt.length === 0) {
+      let currentTextIndex = 0;
+      let currentCharIndex = 0;
+      let isDeleting = false;
+      
+      const typeText = () => {
+        const currentText = ghostTexts[currentTextIndex];
+        
+        if (!isDeleting) {
+          setGhostText(currentText.substring(0, currentCharIndex + 1));
+          currentCharIndex++;
+          
+          if (currentCharIndex === currentText.length) {
+            setTimeout(() => {
+              isDeleting = true;
+            }, 2000);
+          }
+        } else {
+          setGhostText(currentText.substring(0, currentCharIndex - 1));
+          currentCharIndex--;
+          
+          if (currentCharIndex === 0) {
+            isDeleting = false;
+            currentTextIndex = (currentTextIndex + 1) % ghostTexts.length;
+          }
+        }
+      };
+
+      setIsTyping(true);
+      const interval = setInterval(typeText, isDeleting ? 50 : 100);
+      
+      return () => clearInterval(interval);
+    } else {
+      setIsTyping(false);
+      setGhostText('');
+    }
+  }, [prompt]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -357,34 +409,62 @@ function Home() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         width: '100%',
-        height: 'calc(100vh - 80px)',
-        padding: '2rem'
+        height: '100vh',
+        padding: '2rem',
+        paddingTop: '140px' // Move much higher to showcase background
       }}>
-        <div className="modern-prompt-container">
-          <div className="prompt-input-wrapper">
-            <input
-              type="text"
-              className="modern-prompt-input"
-              placeholder="Describe your perfect background..."
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
-            />
-            <button 
-              className="modern-generate-button"
-              onClick={handleGenerate}
-              disabled={!prompt.trim() || isGenerating}
-            >
-              {isGenerating ? (
-                <div className="modern-spinner"></div>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 12h14m-7-7l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              )}
-            </button>
+        <div className="dora-style-container">
+          <div className="dora-header-section">
+            <div className="key-features-label">Key Features</div>
+            <h1 className="dora-main-title">Generate Your Perfect Background</h1>
+            <p className="dora-subtitle">Create stunning parallax scenes from any description</p>
+          </div>
+          
+          <div className="dora-input-container">
+            <div className="dora-input-wrapper">
+              <div className="ai-icon">
+                <img 
+                  src={`${process.env.PUBLIC_URL}/ai-star.png`} 
+                  alt="AI" 
+                  className="ai-star-image"
+                />
+              </div>
+              
+              <div className="input-content">
+                <input
+                  type="text"
+                  className="dora-prompt-input"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
+                />
+                {prompt.length === 0 && isTyping && (
+                  <div className="ghost-text">
+                    {ghostText}
+                    <span className="typing-cursor">|</span>
+                  </div>
+                )}
+              </div>
+              
+              <button 
+                className="dora-generate-button"
+                onClick={handleGenerate}
+                disabled={!prompt.trim() || isGenerating}
+              >
+                {isGenerating ? (
+                  <div className="dora-spinner"></div>
+                ) : (
+                  <>
+                    Generate
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M5 12h14m-7-7l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -447,7 +527,7 @@ function SceneSelector() {
 
   const handleSceneSelect = (scene) => {
     setCurrentScene(scene);
-    setIsOpen(false);
+    // Keep the panel open so users can easily switch between scenes
   };
 
   const currentScenes = activeCategory === 'nature' ? natureScenes : oceanScenes;
