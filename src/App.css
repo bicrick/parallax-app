@@ -1190,13 +1190,22 @@ html, body {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0;
 }
 
 .header-logo {
-  width: 40px;
-  height: 40px;
   object-fit: contain;
+}
+
+.header-icon-logo {
+  width: 48px;
+  height: 48px;
+  margin-right: 6px;
+}
+
+.header-text-logo {
+  height: 32px;
+  width: auto;
 }
 
 .header-brand {
@@ -1529,9 +1538,14 @@ html, body {
     padding: 0 16px;
   }
 
-  .header-logo {
-    width: 32px;
-    height: 32px;
+  .header-icon-logo {
+    width: 40px;
+    height: 40px;
+    margin-right: 5px;
+  }
+
+  .header-text-logo {
+    height: 26px;
   }
 
   .brand-name {

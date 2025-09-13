@@ -623,40 +623,55 @@ function Home() {
     }
   }, [analyzeImageBrightness, textColors]);
 
-  // Typing ghost text effect
+  // Typing ghost text effect - wait for title animations to complete
   useEffect(() => {
     if (prompt.length === 0) {
-      let currentTextIndex = 0;
-      let currentCharIndex = 0;
-      let isDeleting = false;
+      // Calculate when title animations finish:
+      // Main title: 500ms start + (4 words * 180ms) = ~1220ms
+      // Subtitle: 1500ms start + (8 words * 150ms) = ~2700ms
+      // Add 400ms buffer = ~3100ms total delay
+      const ANIMATION_DELAY = 3100;
       
-      const typeText = () => {
-        const currentText = ghostTexts[currentTextIndex];
+      let activeInterval = null;
+      
+      const startGhostAnimation = () => {
+        let currentTextIndex = 0;
+        let currentCharIndex = 0;
+        let isDeleting = false;
         
-        if (!isDeleting) {
-          setGhostText(currentText.substring(0, currentCharIndex + 1));
-          currentCharIndex++;
+        const typeText = () => {
+          const currentText = ghostTexts[currentTextIndex];
           
-          if (currentCharIndex === currentText.length) {
-            setTimeout(() => {
-              isDeleting = true;
-            }, 2000);
+          if (!isDeleting) {
+            setGhostText(currentText.substring(0, currentCharIndex + 1));
+            currentCharIndex++;
+            
+            if (currentCharIndex === currentText.length) {
+              setTimeout(() => {
+                isDeleting = true;
+              }, 2000);
+            }
+          } else {
+            setGhostText(currentText.substring(0, currentCharIndex - 1));
+            currentCharIndex--;
+            
+            if (currentCharIndex === 0) {
+              isDeleting = false;
+              currentTextIndex = (currentTextIndex + 1) % ghostTexts.length;
+            }
           }
-        } else {
-          setGhostText(currentText.substring(0, currentCharIndex - 1));
-          currentCharIndex--;
-          
-          if (currentCharIndex === 0) {
-            isDeleting = false;
-            currentTextIndex = (currentTextIndex + 1) % ghostTexts.length;
-          }
-        }
+        };
+
+        setIsTyping(true);
+        activeInterval = setInterval(typeText, isDeleting ? 15 : 25);
       };
 
-      setIsTyping(true);
-      const interval = setInterval(typeText, isDeleting ? 50 : 100);
+      const delayTimeout = setTimeout(startGhostAnimation, ANIMATION_DELAY);
       
-      return () => clearInterval(interval);
+      return () => {
+        clearTimeout(delayTimeout);
+        if (activeInterval) clearInterval(activeInterval);
+      };
     } else {
       setIsTyping(false);
       setGhostText('');
@@ -917,17 +932,23 @@ function Header() {
       <div className="header-content">
         <div className="header-left">
           <img 
-            src={`${process.env.PUBLIC_URL}/parallax-logo.png`} 
-            alt="Parallax" 
-            className="header-logo"
+            src={`${process.env.PUBLIC_URL}/parallax-logo-cropped.png`} 
+            alt="Parallax Icon" 
+            className="header-logo header-icon-logo"
             onError={(e) => {
-              console.error('Logo failed to load:', e.target.src);
+              console.error('Icon logo failed to load:', e.target.src);
               e.target.style.display = 'none';
             }}
           />
-          <div className="header-brand">
-            <span className="brand-name">Parallax</span>
-          </div>
+          <img 
+            src={`${process.env.PUBLIC_URL}/parallax-text-logo-cropped.png`} 
+            alt="Parallax Text" 
+            className="header-logo header-text-logo"
+            onError={(e) => {
+              console.error('Text logo failed to load:', e.target.src);
+              e.target.style.display = 'none';
+            }}
+          />
         </div>
         <div className="header-right">
           <nav className="header-nav">
