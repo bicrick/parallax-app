@@ -1,6 +1,6 @@
 {
-  "short_name": "Patrick Brown",
-  "name": "Patrick Brown - Data Engineer and MS AI Student",
+  "short_name": "Parallax",
+  "name": "Parallax - AI Background Generator",
   "icons": [
     {
       "src": "favicon.ico",
@@ -20,6 +20,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#87ceeb",
-  "background_color": "#ffffff"
+  "theme_color": "#000000",
+  "background_color": "#000000"
 }

@@ -1,5 +1,5 @@
 {
-  "name": "personal-website",
+  "name": "parallax-themes",
   "version": "0.1.0",
   "private": true,
   "homepage": "/",
@@ -7,10 +7,7 @@
     "cra-template": "1.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.0",
     "react-scripts": "5.0.1",
-    "react-tooltip": "^5.28.0",
-    "swiper": "^11.2.2",
     "web-vitals": "^4.2.4"
   },
   "scripts": {
