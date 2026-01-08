@@ -686,7 +686,25 @@ const getRandomScene = () => {
   return allScenes[randomIndex];
 };
 
-const defaultScene = getRandomScene();
+// Function to get scene by ID
+const getSceneById = (id) => {
+  const allScenes = [...natureScenes, ...oceanScenes];
+  // Handle both string IDs (ocean1) and number IDs (1)
+  const numId = parseInt(id);
+  return allScenes.find(s => s.id === id || s.id === numId) || null;
+};
+
+// Check URL params for wallpaper mode and scene selection
+const getUrlParams = () => {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    isWallpaperMode: params.get('wallpaper') === 'true',
+    sceneId: params.get('scene')
+  };
+};
+
+const urlParams = getUrlParams();
+const defaultScene = urlParams.sceneId ? (getSceneById(urlParams.sceneId) || getRandomScene()) : getRandomScene();
 
 function SceneSelector() {
   const [isOpen, setIsOpen] = useState(false);
@@ -868,6 +886,28 @@ function Header({ themeColors }) {
         </div>
       </div>
     </header>
+  );
+}
+
+function WallpaperMode() {
+  const [currentScene] = useState(defaultScene);
+  const theme = themes[currentScene?.id];
+
+  useEffect(() => {
+    if (theme) {
+      const root = document.documentElement;
+      Object.entries(theme.colors).forEach(([key, value]) => {
+        root.style.setProperty(`--${key}`, value);
+      });
+    }
+  }, [theme]);
+
+  return (
+    <SceneContext.Provider value={{ currentScene, setCurrentScene: () => {} }}>
+      <ThemeContext.Provider value={theme}>
+        <ParallaxBackground scrollSpeedMultiplier={1} />
+      </ThemeContext.Provider>
+    </SceneContext.Provider>
   );
 }
 
@@ -1111,6 +1151,11 @@ function Layout({ children }) {
 }
 
 function App() {
+  // Check if we're in wallpaper mode (for Plash or other desktop wallpaper apps)
+  if (urlParams.isWallpaperMode) {
+    return <WallpaperMode />;
+  }
+
   return (
     <Layout>
       <Home />
